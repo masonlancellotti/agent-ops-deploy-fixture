@@ -1,0 +1,32 @@
+name: Deploy
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Exact commit approved by scripts/deploy_gate.py
+        required: true
+      decision_digest:
+        description: Digest of the gate decision record
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Refuse anything but a full commit SHA
+        run: echo "${{ inputs.sha }}" | grep -Eq '^[0-9a-f]{40}$'
+      - name: Publish release for the approved commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.sha }}
+          DIGEST: ${{ inputs.decision_digest }}
+        run: |
+          tag="deploy-${SHA:0:12}"
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$SHA" \
+            --title "Deploy $tag" --notes "Gate decision digest: $DIGEST. Approved through environment production."
